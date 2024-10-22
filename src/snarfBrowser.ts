@@ -99,8 +99,10 @@ const downloadItem = async (pack: SnarfSitePackageItem) => {
     const ans = await window.showInformationMessage("Directory already exists. Overwrite?", "Yes", "No");
     if (ans !== "Yes") return;
   }
-
-  fs.mkdirSync(unzipPath);
+  else {
+    fs.mkdirSync(unzipPath);
+  }
+  
   resp.body.pipe(unzip.Extract({ path: unzipPath }));
 
   try {
