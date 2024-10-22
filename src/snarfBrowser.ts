@@ -100,6 +100,7 @@ const downloadItem = async (pack: SnarfSitePackageItem) => {
     if (ans !== "Yes") return;
   }
 
+  fs.mkdirSync(unzipPath);
   resp.body.pipe(unzip.Extract({ path: unzipPath }));
 
   try {
