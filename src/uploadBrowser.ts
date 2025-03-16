@@ -134,11 +134,25 @@ export const uploadItem = (item: AsyncItem, context: ExtensionContext) => {
   const { assignment: _assignment, group: _group, provider } = <AssignmentItem>item.item;
 
   const action = async () => {
-    // Attempt to re-fetch assignment
+    // Attempt to re-fetch assignment but preserve original if re-fetch fails
+    const originalAssignment = _assignment;
+    let assignment = originalAssignment;
 
-    const groups = await provider.fetchData();
-    const group = groups?.find((x) => x.label === _group.name);
-    const { assignment } = <AssignmentItem>(group?.children?.find((x) => x.label === _assignment.name)?.item ?? item);
+    try {
+      const groups = await provider.fetchData();
+      if (groups) {
+        const group = groups.find((x) => x.label === _group.name);
+        if (group && group.children) {
+          const assignmentItem = group.children.find((x) => x.label === _assignment.name);
+          if (assignmentItem && assignmentItem.item) {
+            assignment = (<AssignmentItem>assignmentItem.item).assignment;
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to re-fetch assignment data, using original assignment", error);
+      // Continue with originalAssignment
+    }
 
     // Prepare details
 

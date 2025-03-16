@@ -174,13 +174,13 @@
           "type": "string",
           "description": "Your Web-CAT username.",
           "default": "",
-          "order": 3
+          "order": 1
         },
         "web-CAT.password": {
           "type": "string",
           "description": "Your Web-CAT password.",
           "default": "",
-          "order": 4
+          "order": 2
         }
       }
     }
