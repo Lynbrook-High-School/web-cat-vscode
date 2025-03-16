@@ -171,7 +171,42 @@ export const uploadItem = (item: AsyncItem, context: ExtensionContext) => {
     const body = new FormData();
 
     for (const param of assignment.transport.params) {
-      if (PROMPT_ON.hasOwnProperty(param.value)) {
+      if (param.value === "${user}") {
+        // Get username from settings instead of prompting
+        const config = workspace.getConfiguration("web-CAT");
+        let username = config.get<string>("username");
+        
+        // If not set, prompt once and save to settings
+        if (!username) {
+          username = await window.showInputBox({
+            prompt: "Web-CAT Username",
+          });
+          if (!username) return window.showInformationMessage("Operation canceled.");
+          await config.update("username", username, true);
+        }
+        
+        vars.set(param.value, username);
+        body.append(param.name, formatVars(username));
+      } 
+      else if (param.value === "${pw}") {
+        // Get password from settings instead of prompting
+        const config = workspace.getConfiguration("web-CAT");
+        let password = config.get<string>("password");
+        
+        // If not set, prompt once and save to settings
+        if (!password) {
+          password = await window.showInputBox({
+            prompt: "Web-CAT Password",
+            password: true,
+          });
+          if (!password) return window.showInformationMessage("Operation canceled.");
+          await config.update("password", password, true);
+        }
+        
+        vars.set(param.value, password);
+        body.append(param.name, formatVars(password));
+      }
+      else if (PROMPT_ON.hasOwnProperty(param.value)) {
         let value = vars.get(param.value);
         if (!value) {
           value = await window.showInputBox({
@@ -179,12 +214,13 @@ export const uploadItem = (item: AsyncItem, context: ExtensionContext) => {
             value: context.globalState.get(param.value),
           });
           if (!value) return window.showInformationMessage("Operation canceled.");
+          await context.globalState.update(param.value, value);
+          vars.set(param.value, value);
         }
-        await context.globalState.update(param.value, value);
-        vars.set(param.value, value);
+        body.append(param.name, formatVars(param.value));
+      } else {
+        body.append(param.name, formatVars(param.value));
       }
-
-      body.append(param.name, formatVars(param.value));
     }
 
     // Make zip file

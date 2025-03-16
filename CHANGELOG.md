@@ -2,6 +2,9 @@
 
 All notable changes to the "web-cat-vscode" extension will be documented in this file.
 
+## [2.5.2] - 2025-03-15
+- Added username and password fields to VSCode Extension Settings. Allows user to skip re-entering credentials when submitting. Does not affect prior usage but is convenient and time-saving.
+
 ## [2.5.1] - 2023-10-18
 
 - Fixed recurrence of unzipping issue when snarfing into Google Drive

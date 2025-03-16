@@ -4,6 +4,9 @@
   "description": "Submit assignments to the Web-CAT online grader without using Eclipse!",
   "version": "2.5.1",
   "publisher": "oliver-ni",
+  "contributors": [
+    "Visual-Studio-Coder"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/oliver-ni/web-cat-vscode.git"
@@ -166,6 +169,18 @@
           "items": {
             "type": "string"
           }
+        },
+        "web-CAT.username": {
+          "type": "string",
+          "description": "Your Web-CAT username.",
+          "default": "",
+          "order": 3
+        },
+        "web-CAT.password": {
+          "type": "string",
+          "description": "Your Web-CAT password.",
+          "default": "",
+          "order": 4
         }
       }
     }
