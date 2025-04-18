@@ -441,36 +441,88 @@ const parseWebCATResults = (html: string): WebCATResults | null => {
       });
     }
 
-    // Extract problem coverage and coverage-related error messages
+    // Extract problem coverage and specific hints
     const coveragePane = root.querySelector('div[title*="Estimate of Problem Coverage"]');
     if (coveragePane) {
-      const coverageValue = coveragePane.querySelector('b');
+      const coverageValue = coveragePane.querySelector('b'); // First <b> usually has the percentage
       if (coverageValue) {
         results.coverage = coverageValue.text.trim();
       }
       
-      // Check for warning messages in coverage section
-      const warningElement = coveragePane.querySelector('b.warn');
-      if (warningElement) {
-        // This indicates a failed assignment
-        results.coverage = warningElement.text.trim();
-      }
-      
-      // Only extract specific, useful error patterns - focus on missing methods
-      const text = coveragePane.text.trim();
-      
-      // First try to extract class/method missing errors with a specific pattern
-      const missingMethodRegex = /class\s+(\w+)\s+is\s+missing\s+method\s+(\w+)/gi;
-      const matches = Array.from(text.matchAll(missingMethodRegex));
-      
-      if (matches.length > 0) {
-        for (const match of matches) {
-          const cleanMessage = match[0].trim();
-          if (!results.errorMessages.includes(cleanMessage)) {
-            results.errorMessages.push(cleanMessage);
+      // Check for compilation failure first
+      const compileFailureText = 'Your code failed to compile correctly';
+      const compileFailureParagraph = coveragePane.querySelector(`p:contains("${compileFailureText}")`);
+
+      if (compileFailureParagraph) {
+        // Extract messages related to compilation failure
+        results.errorMessages.push(compileFailureText); // Add the main failure message
+        let nextElement = compileFailureParagraph.nextElementSibling;
+        while (nextElement && nextElement.tagName === 'P') {
+          const text = nextElement.text.trim();
+          if (text && !results.errorMessages.includes(text)) {
+            results.errorMessages.push(text);
           }
+          nextElement = nextElement.nextElementSibling;
+        }
+      } else {
+        // If no compile failure, look for specific hints
+        const hintTriggerParagraph = coveragePane.querySelector('p:contains("The following hint(s)")');
+        if (hintTriggerParagraph) {
+          let nextElement = hintTriggerParagraph.nextElementSibling;
+          while (nextElement) {
+            // Check if it's a list (UL)
+            if (nextElement.tagName === 'UL') {
+              const listItems = nextElement.querySelectorAll('li');
+              listItems.forEach(li => {
+                const pInLi = li.querySelector('p');
+                const text = (pInLi || li).text.trim();
+                if (text && !results.errorMessages.includes(text)) {
+                  results.errorMessages.push(text);
+                }
+              });
+            } 
+            // Check if it's just a paragraph directly following
+            else if (nextElement.tagName === 'P') {
+               const text = nextElement.text.trim();
+               if (text && !results.errorMessages.includes(text)) {
+                  results.errorMessages.push(text);
+               }
+            }
+            nextElement = nextElement.nextElementSibling;
+          }
+        } else {
+           // Fallback: If neither compile error nor hints found, try common patterns
+           const text = coveragePane.text.trim();
+           const missingMethodRegex = /class\s+(\w+)\s+is\s+missing\s+method\s+(\w+)/gi;
+           const matches = Array.from(text.matchAll(missingMethodRegex));
+           
+           if (matches.length > 0) {
+             for (const match of matches) {
+               const cleanMessage = match[0].trim();
+               if (!results.errorMessages.includes(cleanMessage)) {
+                 results.errorMessages.push(cleanMessage);
+               }
+             }
+           }
         }
       }
+    }
+
+    // Also check for a separate "Compilation Produced Errors" pane
+    const compileErrorPane = root.querySelector('div[title="Compilation Produced Errors"]');
+    if (compileErrorPane) {
+        const preElement = compileErrorPane.querySelector('pre');
+        if (preElement) {
+            const compileLog = preElement.text.trim();
+            // Add a concise version or key lines from the compile log
+            const lines = compileLog.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('/*') && !l.startsWith('^')); // Basic filtering
+            lines.forEach(line => {
+                const cleanLine = line.replace(/<[^>]*>/g, '').trim(); // Remove potential HTML tags if any
+                if (cleanLine && !results.errorMessages.some(msg => msg.includes(cleanLine))) {
+                    results.errorMessages.push(`Compile Error: ${cleanLine}`);
+                }
+            });
+        }
     }
     
     // Extract file details and error messages
@@ -577,7 +629,7 @@ const generateSummaryTab = (results: WebCATResults): string => {
   // Create the error messages section if there are any
   const errorMessagesSection = results.errorMessages.length > 0 ? `
     <div class="results-card error-messages">
-      <h3>Fix These Issues</h3>
+      <h3>Fix These Issues</h3> 
       <ul class="error-list">
         ${results.errorMessages.map(msg => `
           <li class="error-item">${msg}</li>

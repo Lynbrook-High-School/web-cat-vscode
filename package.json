@@ -169,18 +169,6 @@
           "items": {
             "type": "string"
           }
-        },
-        "web-CAT.username": {
-          "type": "string",
-          "description": "Your Web-CAT username.",
-          "default": "",
-          "order": 1
-        },
-        "web-CAT.password": {
-          "type": "string",
-          "description": "Your Web-CAT password.",
-          "default": "",
-          "order": 2
         }
       }
     }

@@ -3,7 +3,7 @@
 All notable changes to the "web-cat-vscode" extension will be documented in this file.
 
 ## [2.5.2] - 2025-03-15
-- Added username and password fields to VSCode Extension Settings. Allows user to skip re-entering credentials when submitting. Does not affect prior usage but is convenient and time-saving.
+- Redesigned the WebCAT Submitter interface for improved usability and clarity.
 
 ## [2.5.1] - 2023-10-18
 
