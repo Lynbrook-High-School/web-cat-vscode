@@ -2,6 +2,9 @@
 
 All notable changes to the "web-cat-vscode" extension will be documented in this file.
 
+## [2.5.2] - 2025-03-15
+- Redesigned the WebCAT Submitter interface for improved usability and clarity.
+
 ## [2.5.1] - 2023-10-18
 
 - Fixed recurrence of unzipping issue when snarfing into Google Drive
