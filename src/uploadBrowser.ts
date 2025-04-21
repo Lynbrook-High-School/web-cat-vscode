@@ -134,28 +134,22 @@ export const uploadItem = (item: AsyncItem, context: ExtensionContext) => {
   const { assignment: _assignment, group: _group, provider } = <AssignmentItem>item.item;
 
   const action = async () => {
-    // Attempt to re-fetch assignment but preserve original if re-fetch fails
-    const originalAssignment = _assignment;
-    let assignment = originalAssignment;
-
+    // Attempt to re-fetch assignment
+    let assignment = _assignment;
     try {
       const groups = await provider.fetchData();
-      if (groups) {
-        const group = groups.find((x) => x.label === _group.name);
-        if (group && group.children) {
-          const assignmentItem = group.children.find((x) => x.label === _assignment.name);
-          if (assignmentItem && assignmentItem.item) {
-            assignment = (<AssignmentItem>assignmentItem.item).assignment;
-          }
+      const group = groups?.find((x) => x.label === _group.name);
+      if (group?.children) {
+        const assignmentItem = group.children.find((x) => x.label === _assignment.name);
+        if (assignmentItem?.item) {
+          assignment = (<AssignmentItem>assignmentItem.item).assignment;
         }
       }
     } catch (error) {
       console.error("Failed to re-fetch assignment data, using original assignment", error);
-      // Continue with originalAssignment
     }
 
     // Prepare details
-
     const vars: Map<string, string> = new Map();
     const formatVars = (value: string) => {
       for (const [k, v] of vars.entries()) {
@@ -181,64 +175,27 @@ export const uploadItem = (item: AsyncItem, context: ExtensionContext) => {
     }
 
     // Enter credentials
-
     const body = new FormData();
 
     for (const param of assignment.transport.params) {
-      if (param.value === "${user}") {
-        // Get username from settings instead of prompting
-        const config = workspace.getConfiguration("web-CAT");
-        let username = config.get<string>("username");
-        
-        // If not set, prompt once and save to settings
-        if (!username) {
-          username = await window.showInputBox({
-            prompt: "Web-CAT Username",
-          });
-          if (!username) return window.showInformationMessage("Operation canceled.");
-          await config.update("username", username, true);
-        }
-        
-        vars.set(param.value, username);
-        body.append(param.name, formatVars(username));
-      } 
-      else if (param.value === "${pw}") {
-        // Get password from settings instead of prompting
-        const config = workspace.getConfiguration("web-CAT");
-        let password = config.get<string>("password");
-        
-        // If not set, prompt once and save to settings
-        if (!password) {
-          password = await window.showInputBox({
-            prompt: "Web-CAT Password",
-            password: true,
-          });
-          if (!password) return window.showInformationMessage("Operation canceled.");
-          await config.update("password", password, true);
-        }
-        
-        vars.set(param.value, password);
-        body.append(param.name, formatVars(password));
-      }
-      else if (PROMPT_ON.hasOwnProperty(param.value)) {
+      if (PROMPT_ON.hasOwnProperty(param.value)) {
         let value = vars.get(param.value);
         if (!value) {
           value = await window.showInputBox({
             ...PROMPT_ON[param.value],
             value: context.globalState.get(param.value),
+            ignoreFocusOut: true, // Keep dialog open when focus moves
           });
           if (!value) return window.showInformationMessage("Operation canceled.");
           await context.globalState.update(param.value, value);
           vars.set(param.value, value);
         }
-        body.append(param.name, formatVars(param.value));
-      } else {
-        body.append(param.name, formatVars(param.value));
       }
+
+      body.append(param.name, formatVars(param.value));
     }
 
     // Make zip file
-
     for (const { param, dir } of files) {
       const output = new streamBuffers.WritableStreamBuffer();
       const archive = archiver("zip");
@@ -284,47 +241,53 @@ export const uploadItem = (item: AsyncItem, context: ExtensionContext) => {
     </html>
     `;
 
-    // Request
-    const resp = await fetch(assignment.transport.uri, {
-      method: "POST",
-      body,
-    });
-    const html = await resp.text();
-    const tree = parseHTML(html);
-    const resultsUrl = tree.querySelector("a")?.attrs?.href;
-    
-    console.log("Initial HTML response:", html);
-    
-    if (!resultsUrl) {
-      panel.webview.html = createSimpleView(html, null, "Error: Could not find results URL");
-      return;
-    }
-
-    // Initial response
-    panel.webview.html = createSimpleView(html, resultsUrl);
-
-    // Fetch results page
-    console.log("Fetching results from:", resultsUrl);
-    const resultsResp = await fetch(resultsUrl);
-    const resultsHtml = await resultsResp.text();
-    console.log("Results HTML:", resultsHtml);
-    panel.webview.html = createSimpleView(resultsHtml, resultsUrl);
-
-    // Poll for completion
-    for (let i = 0; i < 10; i++) {
-      if (!resultsHtml.includes("Assignment Queued for Grading")) {
-        break;
-      }
+    // Request - Simplified approach based on original implementation
+    try {
+      const resp = await fetch(assignment.transport.uri, {
+        method: "POST",
+        body,
+      });
       
-      await delay(500);
-      const resp = await fetch(resultsUrl);
       const html = await resp.text();
-      console.log(`Poll attempt ${i+1} HTML:`, html);
+      const tree = parseHTML(html);
+      const resultsUrl = tree.querySelector("a")?.attrs?.href;
       
-      if (!html.includes("Assignment Queued for Grading")) {
-        panel.webview.html = createSimpleView(html, resultsUrl);
+      console.log("Initial response, found link:", resultsUrl);
+      
+      if (!resultsUrl) {
+        // If we can't find a URL, show the response as is
+        panel.webview.html = createSimpleView(html, null, "Could not find results URL. Check your credentials.");
         return;
       }
+
+      // Show initial response
+      panel.webview.html = createSimpleView(html, resultsUrl);
+
+      // Fetch results page
+      const resultsResp = await fetch(resultsUrl);
+      const resultsHtml = await resultsResp.text();
+      panel.webview.html = createSimpleView(resultsHtml, resultsUrl);
+
+      // Poll for completion
+      for (let i = 0; i < 10; i++) {
+        if (!resultsHtml.includes("Assignment Queued for Grading")) {
+          break;
+        }
+        
+        await delay(500);
+        const resp = await fetch(resultsUrl);
+        const html = await resp.text();
+        
+        if (!html.includes("Assignment Queued for Grading")) {
+          panel.webview.html = createSimpleView(html, resultsUrl);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error("Error during submission:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      panel.webview.html = createSimpleView("", null, 
+        `Error during submission: ${errorMessage}. Please check your connection and credentials.`);
     }
   };
 
