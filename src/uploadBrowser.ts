@@ -580,6 +580,9 @@ const parseWebCATResults = (html: string): WebCATResults | null => {
       .filter(msg => {
         // Skip if it's a duplicate in essence (contains the same key information)
         const lowerMsg = msg.toLowerCase();
+        // Skip problem coverage messages - we'll add this separately
+        if (lowerMsg.includes("problem coverage")) return false;
+        
         for (const existingMsg of uniqueMessages) {
           if (lowerMsg.includes(existingMsg.toLowerCase())) return false;
           if (existingMsg.toLowerCase().includes(lowerMsg)) return false;
@@ -588,32 +591,14 @@ const parseWebCATResults = (html: string): WebCATResults | null => {
         return true;
       });
 
-    // Add coverage as the first message if it exists
-    if (results.coverage && !results.coverage.includes('100%')) {
-      results.errorMessages.unshift(`Problem coverage: ${results.coverage}`);
-    }
+    // We don't need to add coverage as a message since it's displayed separately in the UI
+    // This removes the redundant coverage message
     
     return results;
   } catch (error) {
     console.error("Error parsing Web-CAT HTML:", error);
     return null;
   }
-};
-
-/**
- * Generate a summary UI based on the parsed results
- */
-const generateResultsUI = (results: WebCATResults): string => {
-  if (results.isQueued) {
-    return `
-      <div style="padding: 20px; text-align: center;">
-        <h3>Assignment Queued for Grading</h3>
-        <p>Your submission is currently in the grading queue. Please check back shortly.</p>
-      </div>
-    `;
-  }
-  
-  return ''; // The detailed UI is in the tabs
 };
 
 /**
@@ -625,6 +610,18 @@ const generateSummaryTab = (results: WebCATResults): string => {
   const scoreMax = parseFloat(totalScoreParts[1]);
   const scorePercentage = isNaN(scoreValue) || isNaN(scoreMax) || scoreMax === 0 ? 0 : (scoreValue / scoreMax) * 100;
   const isFailed = scorePercentage === 0 || results.coverage.includes('0%');
+  
+  // Process coverage text to separate the "Problem coverage:" prefix from the percentage value
+  let coveragePrefix = '';
+  let coverageValue = results.coverage;
+  
+  if (results.coverage) {
+    const matches = results.coverage.match(/^(Problem coverage:)\s+(.+)$/i);
+    if (matches && matches.length >= 3) {
+      coveragePrefix = matches[1];
+      coverageValue = matches[2].trim();
+    }
+  }
   
   // Create the error messages section if there are any
   const errorMessagesSection = results.errorMessages.length > 0 ? `
@@ -657,8 +654,9 @@ const generateSummaryTab = (results: WebCATResults): string => {
         </div>
         
         ${results.coverage ? `
-        <p style="margin-top: 15px;"><strong>Problem Coverage:</strong> 
-          <span class="${results.coverage.includes('0%') ? 'error-score' : ''}">${results.coverage}</span>
+        <p style="margin-top: 15px;">
+          <span>${coveragePrefix} </span>
+          <span class="${coverageValue.includes('0%') || coverageValue === 'unknown' ? 'error-score' : ''}">${coverageValue}</span>
         </p>
         ` : ''}
       </div>
@@ -951,7 +949,12 @@ const createSimpleView = (html: string, resultsUrl: string | null, errorMessage?
       <!-- Summary Section -->
       <div class="section">
         <div class="section-header">Summary</div>
-        ${parsedResults ? generateResultsUI(parsedResults) : ''}
+        ${isQueued ? `
+        <div style="padding: 20px; text-align: center;">
+          <h3>Assignment Queued for Grading</h3>
+          <p>Your submission is currently in the grading queue. Please check back shortly.</p>
+        </div>
+        ` : ''}
         ${summaryContent}
       </div>
       
@@ -959,14 +962,6 @@ const createSimpleView = (html: string, resultsUrl: string | null, errorMessage?
       <div class="section">
         <div class="section-header">File Details</div>
         ${detailsContent}
-      </div>
-      
-      <!-- Source HTML Section -->
-      <div class="section">
-        <div class="section-header">Source HTML</div>
-        <div class="raw-html">
-          ${html.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-        </div>
       </div>
     </body>
   </html>`;
