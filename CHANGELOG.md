@@ -2,7 +2,7 @@
 
 All notable changes to the "web-cat-vscode" extension will be documented in this file.
 
-## [2.5.1] - 2023-10-18
+## [2.5.1] - 2025-5-13
 
 - Fixed recurrence of unzipping issue when snarfing into Google Drive
 
